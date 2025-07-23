@@ -1,0 +1,7 @@
+target
+model
+ort
+
+# pixi environments
+.pixi
+*.egg-info
