@@ -1,7 +1,6 @@
 FROM rust:1.87 as build
 
 # Add certificate and uncomment if building behind proxy with custom cert
-COPY ./gitignore/ca-certificates.crt /etc/ssl/cert.pem
 # COPY ./gitignore/ca-certificates.crt /usr/local/share/ca-certificates/ca.crt
 # RUN update-ca-certificates
 
@@ -14,6 +13,7 @@ RUN --mount=type=cache,target=/project/model \
     cp -r model /model
 ENV ORT_LIB_LOCATION=/project/ort/onnxruntime/lib
 RUN --mount=type=cache,target=/project/target \
+    --mount=type=cache,target=/project/ort \
     --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     cargo b --release && \

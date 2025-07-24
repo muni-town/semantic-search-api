@@ -15,7 +15,7 @@ fi
 popd
 
 # Download ORT
-if [ ! -d "ort" ]; then
+if [ ! -d "ort/onnxruntime" ]; then
     mkdir -p ort
     pushd ort
     wget https://cdn.pyke.io/0/pyke:ort-rs/ms@1.22.1/x86_64-unknown-linux-gnu.tgz -O ort.tgz
