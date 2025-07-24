@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use poem::{
     Body, EndpointExt, Route, Server,
     error::ResponseError,
@@ -8,14 +6,13 @@ use poem::{
     listener::TcpListener,
     middleware::AddData,
     post,
-    web::{Data, Json, Path},
+    web::{Data, Json, Path, Query},
 };
 
 use clap::Parser;
-use qdrant_client::{Payload, qdrant::SearchPointsBuilder};
-use semantic_search_api::{Engine, Item};
+use semantic_search_api::{Engine, Item, Payload, SearchResult};
+use serde::Deserialize;
 use serde_json::Value;
-use tokio::sync::Mutex;
 use uuid::{Uuid, uuid};
 
 const UUID_NAMESPACE: Uuid = uuid!("da0ac261-2851-4934-a405-a1df024749cb");
@@ -24,6 +21,11 @@ const UUID_NAMESPACE: Uuid = uuid!("da0ac261-2851-4934-a405-a1df024749cb");
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
+    /// Enable the generic embed endpoint, which you may not want exposed in production since it
+    /// just lets you submit anything for embedding.
+    #[arg(short, long)]
+    enable_embed_endpoint: bool,
+
     /// Name of the person to greet
     #[arg(short, long, default_value = "http://localhost:6334")]
     qdrant_url: String,
@@ -35,8 +37,6 @@ struct Args {
     #[arg(short, long, default_value_t = 3000)]
     listen_port: u16,
 }
-
-type EngineState<'a> = &'a Arc<Mutex<Engine>>;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
@@ -67,10 +67,9 @@ async fn get_uuid(Path(id): Path<String>) -> String {
 async fn post_index(
     Path(id): Path<String>,
     body: Body,
-    engine: Data<EngineState<'_>>,
+    engine: Data<&Engine>,
 ) -> Result<Json<Value>> {
     let uuid = Uuid::new_v5(&UUID_NAMESPACE, id.as_bytes());
-    let mut engine = engine.lock().await;
     let mut payload = Payload::new();
 
     payload.insert("id", id);
@@ -88,12 +87,28 @@ async fn post_index(
 }
 
 #[handler]
-async fn post_search(body: Body, engine: Data<EngineState<'_>>) -> Result<Json<Value>> {
-    let mut engine = engine.lock().await;
-    let mut payload = Payload::new();
+async fn post_embed(body: Body, engine: Data<&Engine>) -> Result<Json<Vec<f32>>> {
+    Ok(Json(
+        engine
+            .embed_single(&body.into_string().await.map_err(anyhow::Error::from)?)
+            .await?,
+    ))
+}
 
-    let json = todo!();
-    Ok(Json(json))
+#[derive(Debug, Deserialize)]
+struct PostSearchQuery {
+    limit: Option<u64>,
+}
+
+#[handler]
+async fn post_search(
+    body: Body,
+    engine: Data<&Engine>,
+    query: Query<PostSearchQuery>,
+) -> Result<Json<Vec<SearchResult>>> {
+    let text = body.into_string().await.map_err(anyhow::Error::from)?;
+    let results = engine.search(&text, query.limit).await?;
+    Ok(Json(results))
 }
 
 #[tokio::main]
@@ -101,11 +116,14 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let engine = Engine::start(&args.qdrant_url, &args.qdrant_collection).await?;
 
-    let app = Route::new()
+    let mut app_base = Route::new()
         .at("/index/:id", post(post_index))
         .at("/uuid/:id", get(get_uuid))
-        .at("/search", post(post_search))
-        .with(AddData::new(Arc::new(Mutex::new(engine))));
+        .at("/search", post(post_search));
+    if args.enable_embed_endpoint {
+        app_base = app_base.at("/embed", post(post_embed));
+    }
+    let app = app_base.with(AddData::new(engine));
 
     Server::new(TcpListener::bind(format!("0.0.0.0:{}", args.listen_port)))
         .run(app)
