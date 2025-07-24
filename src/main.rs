@@ -125,7 +125,9 @@ async fn main() -> anyhow::Result<()> {
     }
     let app = app_base.with(AddData::new(engine));
 
-    Server::new(TcpListener::bind(format!("0.0.0.0:{}", args.listen_port)))
+    let addr = format!("0.0.0.0:{}", args.listen_port);
+    println!("Starting server on: {addr}");
+    Server::new(TcpListener::bind(addr))
         .run(app)
         .await?;
     Ok(())
