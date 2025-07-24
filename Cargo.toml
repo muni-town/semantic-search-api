@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.98"
-clap = { version = "4.5.41", features = ["derive"] }
+clap = { version = "4.5.41", features = ["derive", "env"] }
 fastembed = { version = "5.0.0", default-features = false }
 itertools = "0.14.0"
 poem = "3.1.11"

@@ -23,18 +23,18 @@ const UUID_NAMESPACE: Uuid = uuid!("da0ac261-2851-4934-a405-a1df024749cb");
 struct Args {
     /// Enable the generic embed endpoint, which you may not want exposed in production since it
     /// just lets you submit anything for embedding.
-    #[arg(short, long)]
+    #[arg(short, long, env)]
     enable_embed_endpoint: bool,
 
     /// Name of the person to greet
-    #[arg(short, long, default_value = "http://localhost:6334")]
+    #[arg(short, long, default_value = "http://localhost:6334", env)]
     qdrant_url: String,
 
-    #[arg(short = 'c', long, default_value = "semantic_search_api")]
+    #[arg(short = 'c', long, default_value = "semantic_search_api", env)]
     qdrant_collection: String,
 
     /// Number of times to greet
-    #[arg(short, long, default_value_t = 3000)]
+    #[arg(short, long, default_value_t = 3000, env)]
     listen_port: u16,
 }
 

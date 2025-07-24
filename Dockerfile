@@ -22,6 +22,6 @@ RUN --mount=type=cache,target=/project/target \
 FROM debian:bookworm
 ENV LD_LIBRARY_PATH=/
 COPY --from=build /semantic-search-api /
-COPY --from=build /model /
+COPY --from=build /model /model
 ENTRYPOINT ["/semantic-search-api"]
 
