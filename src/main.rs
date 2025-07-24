@@ -59,14 +59,6 @@ impl ResponseError for Error {
 }
 
 #[handler]
-async fn post_embed(body: Body, engine: Data<EngineState<'_>>) -> Result<Json<Value>> {
-    let mut engine = engine.lock().await;
-    let text = body.into_string().await.unwrap();
-    let embed = engine.model.embed(vec![text], None)?.remove(0);
-    Ok(Json(embed.into()))
-}
-
-#[handler]
 async fn get_uuid(Path(id): Path<String>) -> String {
     Uuid::new_v5(&UUID_NAMESPACE, id.as_bytes()).to_string()
 }
@@ -110,7 +102,6 @@ async fn main() -> anyhow::Result<()> {
     let engine = Engine::start(&args.qdrant_url, &args.qdrant_collection).await?;
 
     let app = Route::new()
-        .at("/embed", post(post_embed))
         .at("/index/:id", post(post_index))
         .at("/uuid/:id", get(get_uuid))
         .at("/search", post(post_search))
