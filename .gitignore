@@ -2,6 +2,8 @@ target
 model
 ort
 
+example/conversations.json
+
 # pixi environments
 .pixi
 *.egg-info

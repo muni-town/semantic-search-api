@@ -44,6 +44,38 @@ The endpoint will return a list of items with their ID and the similarity score 
 You can optionally add a `limit` query parameter which will set a limit on how many items are
 returned, for example: `POST /search?limit=20`. The default limit is `10`.
 
+## Example
+
+The repo includes a quick example of how to use it to search a database of chat messages using Deno.
+
+```bash
+cd example
+
+# First we need to start the search services
+docker compose up -d
+
+# Then we need to download the conversation database. That will download
+# the `conversations.json` file containing a bunch of sample messages.
+./download-conversations.sh
+
+# Now we need to index the messages. This may take a while to index the 188k
+# messages, but you can search the messages while they are being indexed and
+# if you don't care to index all of them you can cancel it at any time and
+# all of the messages that have already been indexed will still be searchable.
+deno run -A indexConversations.ts
+
+# After that's done ( or during indexing in another terminal ), we can search
+# for chat messages.
+deno run -A search.ts Do you like dogs?
+```
+
+Check out the scripts in the `example` folder to see how easy it is to search and index messages!
+
+### Qdrant Dashboard
+
+You can also access the QDrant web dashboard after running `docker compose up -d` by going to
+<http://localhost:6333/dashboard#/collections>.
+
 ## Deployment
 
 The service is easily deployed, along with Qdrant, using docker compose:

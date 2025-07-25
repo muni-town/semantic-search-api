@@ -1,0 +1,1 @@
+wget https://github.com/alexa/Topical-Chat/raw/refs/heads/master/conversations/train.json -O conversations.json
