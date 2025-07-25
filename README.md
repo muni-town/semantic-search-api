@@ -71,6 +71,11 @@ deno run -A search.ts Do you like dogs?
 
 Check out the scripts in the `example` folder to see how easy it is to search and index messages!
 
+> **Credits:** The example conversations are from the following dataset:
+>
+> Gopalakrishnan, Karthik, et al. "Topical-Chat: Towards Knowledge-Grounded Open-Domain
+> Conversations.", Proc. INTERSPEECH 2019
+
 ### Qdrant Dashboard
 
 You can also access the QDrant web dashboard after running `docker compose up -d` by going to
