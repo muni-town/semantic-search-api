@@ -10,8 +10,8 @@ use poem::{
 };
 
 use clap::Parser;
-use semantic_search_api::{Engine, Item, Payload, SearchResult};
-use serde::Deserialize;
+use semantic_search_api::{Engine, Item, Payload};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::{Uuid, uuid};
 
@@ -63,20 +63,30 @@ async fn get_uuid(Path(id): Path<String>) -> String {
     Uuid::new_v5(&UUID_NAMESPACE, id.as_bytes()).to_string()
 }
 
+#[derive(Deserialize)]
+struct IndexItem {
+    text: String,
+    metadata: Option<serde_json::Value>,
+}
+
 #[handler]
 async fn post_index(
     Path(id): Path<String>,
-    body: Body,
+    Json(item): Json<IndexItem>,
     engine: Data<&Engine>,
 ) -> Result<Json<Value>> {
     let uuid = Uuid::new_v5(&UUID_NAMESPACE, id.as_bytes());
     let mut payload = Payload::new();
 
     payload.insert("id", id);
+    if let Some(metadata) = item.metadata {
+        payload.insert("metadata", metadata.to_string());
+    }
+
     engine
         .index([Item {
             id: uuid,
-            text: body.into_string().await.map_err(anyhow::Error::from)?,
+            text: item.text,
             payload,
         }])
         .await?;
@@ -100,15 +110,35 @@ struct PostSearchQuery {
     limit: Option<u64>,
 }
 
+#[derive(Serialize)]
+struct PostSearchResult {
+    id: String,
+    score: f32,
+    metadata: Option<serde_json::Value>,
+}
+
 #[handler]
 async fn post_search(
     body: Body,
     engine: Data<&Engine>,
     query: Query<PostSearchQuery>,
-) -> Result<Json<Vec<SearchResult>>> {
+) -> Result<Json<Vec<PostSearchResult>>> {
     let text = body.into_string().await.map_err(anyhow::Error::from)?;
     let results = engine.search(&text, query.limit).await?;
-    Ok(Json(results))
+    Ok(Json(
+        results
+            .into_iter()
+            .map(|x| PostSearchResult {
+                // TODO: remove unwraps and add error handling.
+                id: x.payload.get("id").unwrap().as_str().unwrap().clone(),
+                metadata: x
+                    .payload
+                    .get("metadata")
+                    .map(|x| serde_json::from_str(x.as_str().unwrap()).unwrap()),
+                score: x.score,
+            })
+            .collect::<Vec<_>>(),
+    ))
 }
 
 #[tokio::main]
@@ -127,8 +157,6 @@ async fn main() -> anyhow::Result<()> {
 
     let addr = format!("0.0.0.0:{}", args.listen_port);
     println!("Starting server on: {addr}");
-    Server::new(TcpListener::bind(addr))
-        .run(app)
-        .await?;
+    Server::new(TcpListener::bind(addr)).run(app).await?;
     Ok(())
 }

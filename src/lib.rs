@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context;
 use fastembed::{TextEmbedding, TokenizerFiles, UserDefinedEmbeddingModel};
@@ -6,7 +6,7 @@ use qdrant_client::{
     Qdrant,
     qdrant::{
         CreateCollectionBuilder, Distance, PointStruct, QuantizationType, Query,
-        QueryPointsBuilder, ScalarQuantization, UpsertPointsBuilder, VectorParamsBuilder,
+        QueryPointsBuilder, ScalarQuantization, UpsertPointsBuilder, Value, VectorParamsBuilder,
         VectorsConfigBuilder, quantization_config::Quantization,
     },
 };
@@ -35,8 +35,8 @@ pub struct Item {
 
 #[derive(Serialize, Debug, Clone)]
 pub struct SearchResult {
-    pub id: String,
     pub score: f32,
+    pub payload: HashMap<String, Value>,
 }
 
 impl Engine {
@@ -148,12 +148,9 @@ impl Engine {
         Ok(result
             .result
             .into_iter()
-            .filter_map(|x| match x.payload.get("id") {
-                Some(v) if v.is_str() => Some(SearchResult {
-                    id: v.as_str().unwrap().into(),
-                    score: x.score,
-                }),
-                _ => None,
+            .map(|x| SearchResult {
+                score: x.score,
+                payload: x.payload,
             })
             .collect())
     }
