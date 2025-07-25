@@ -1,0 +1,21 @@
+services:
+  semantic-search-api:
+    # image: ghcr.io/muni-town/semantic-search-api:main
+    image: ssa
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    environment:
+      QDRANT_URL: http://qdrant:6334
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: unless-stopped
+    ports:
+      - 6333:6333
+      - 6334:6334
+    volumes:
+      - qdrant:/qdrant/storage 
+
+volumes:
+  qdrant:
