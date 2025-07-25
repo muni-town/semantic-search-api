@@ -3,6 +3,7 @@ model
 ort
 
 example/conversations.json
+discord-bot/.env
 
 # pixi environments
 .pixi

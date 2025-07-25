@@ -1,0 +1,27 @@
+{
+  "name": "discord-bot",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "tsx watch src/main.ts"
+  },
+  "type": "module",
+  "keywords": [],
+  "author": "Zicklag",
+  "license": "ISC",
+  "packageManager": "pnpm@10.10.0",
+  "dependencies": {
+    "@discordeno/bot": "^21.0.0",
+    "classic-level": "^3.0.0",
+    "dotenv": "^17.2.1",
+    "undici": "^7"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "@discordeno/gateway": "patches/@discordeno__gateway.patch"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "tsx": "^4.20.3"
+  }
+}
