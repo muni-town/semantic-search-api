@@ -1,7 +1,6 @@
 services:
   semantic-search-api:
-    # image: ghcr.io/muni-town/semantic-search-api:main
-    image: ssa
+    image: ghcr.io/muni-town/semantic-search-api:main
     restart: unless-stopped
     ports:
       - 3000:3000

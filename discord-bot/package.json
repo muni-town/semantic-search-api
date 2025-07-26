@@ -2,7 +2,8 @@
   "name": "discord-bot",
   "version": "1.0.0",
   "scripts": {
-    "dev": "tsx watch src/main.ts"
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts"
   },
   "type": "module",
   "keywords": [],
@@ -11,8 +12,10 @@
   "packageManager": "pnpm@10.10.0",
   "dependencies": {
     "@discordeno/bot": "^21.0.0",
+    "@whatwg-node/server": "^0.10.10",
     "classic-level": "^3.0.0",
     "dotenv": "^17.2.1",
+    "itty-router": "^5.0.18",
     "undici": "^7"
   },
   "pnpm": {
