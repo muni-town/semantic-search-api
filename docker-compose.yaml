@@ -1,5 +1,5 @@
 services:
-  semantic-search-api:
+  embedding-api:
     image: ghcr.io/muni-town/semantic-search-api:main
     restart: unless-stopped
     ports:

@@ -17,11 +17,11 @@ RUN --mount=type=cache,target=/project/target \
     --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     cargo b --release && \
-    cp target/release/semantic-search-api /
+    cp target/release/embedding-api /
 
 FROM debian:bookworm
 ENV LD_LIBRARY_PATH=/
-COPY --from=build /semantic-search-api /
+COPY --from=build /embedding-api /
 COPY --from=build /model /model
-ENTRYPOINT ["/semantic-search-api"]
+ENTRYPOINT ["/embedding-api"]
 

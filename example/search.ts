@@ -1,19 +1,27 @@
 import { messages } from "./conversations.ts";
+import { embed } from "./embed.ts";
+import { collectionName, qdrant } from "./qdrant.ts";
 
 const query = Deno.args.join(" ");
 
-const resp = await fetch("http://localhost:3000/search?limit=20", {
-  method: "post",
-  body: query,
+const embeddings = await embed(query);
+
+// Perform a hybrid search
+const results = await qdrant.query(collectionName, {
+  prefetch: [
+    {
+      query: embeddings.bm25,
+      using: "bm25",
+      limit: 20,
+    },
+    {
+      query: embeddings.dense,
+      using: "dense",
+      limit: 10,
+    },
+  ],
+  query: { fusion: "rrf" },
+  with_payload: true,
 });
 
-const results: { id: string; score: number }[] = await resp.json();
-
-console.log(
-  results
-    .map((x) => ({
-      message: messages[parseInt(x.id)],
-      score: x.score,
-    }))
-    .reverse()
-);
+console.log(results.points.reverse());
