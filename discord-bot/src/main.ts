@@ -203,6 +203,8 @@ const ittyServer = createServerAdapter(router.fetch);
 const httpServer = createServer(ittyServer);
 httpServer.listen(process.env.PORT ? parseInt(process.env.PORT) : 3001);
 
+let doneBackfilling = false;
+
 const bot = createBot({
   token: process.env.TOKEN!,
   intents: Intents.MessageContent | Intents.Guilds | Intents.GuildMessages,
@@ -266,26 +268,26 @@ const bot = createBot({
         });
       }
 
-      await bot.helpers.upsertGlobalApplicationCommands([
-        {
-          type: ApplicationCommandTypes.ChatInput,
-          name: "search",
-          description:
-            "Search all discord messages, way better than Discord's normal search",
-          options: [
-            {
-              name: "text",
-              description: "The text to search messages by",
-              type: ApplicationCommandOptionTypes.String,
-            },
-          ],
-          integrationTypes: [DiscordApplicationIntegrationType.GuildInstall],
-          contexts: [
-            DiscordInteractionContextType.Guild,
-            DiscordInteractionContextType.BotDm,
-          ],
-        },
-      ]);
+      // await bot.helpers.upsertGlobalApplicationCommands([
+      //   {
+      //     type: ApplicationCommandTypes.ChatInput,
+      //     name: "search",
+      //     description:
+      //       "Search all discord messages, way better than Discord's normal search",
+      //     options: [
+      //       {
+      //         name: "text",
+      //         description: "The text to search messages by",
+      //         type: ApplicationCommandOptionTypes.String,
+      //       },
+      //     ],
+      //     integrationTypes: [DiscordApplicationIntegrationType.GuildInstall],
+      //     contexts: [
+      //       DiscordInteractionContextType.Guild,
+      //       DiscordInteractionContextType.BotDm,
+      //     ],
+      //   },
+      // ]);
 
       // For every guild the bot is in
       for (const guildId of ready.guilds) {
@@ -354,6 +356,7 @@ const bot = createBot({
           }
         }
       }
+      doneBackfilling = true;
     },
     messageCreate: async (message) => {
       if (!message.guildId) throw "Message missing guildId";
@@ -364,40 +367,47 @@ const bot = createBot({
         message.content,
         message.author.username
       );
-    },
-    async interactionCreate(interaction) {
-      if (interaction.type == InteractionTypes.ApplicationCommand) {
-        if (interaction.data?.name == "search") {
-          const query = interaction.data.options?.find((x) => x.name == "text")
-            ?.value as string;
-          const results = await searchMessages(query, {
-            bm25: true,
-            dense: true,
-            filter: false,
-            offset: 0,
-          });
 
-          const embeds: DiscordEmbed[] = await Promise.all(
-            results
-              .reverse()
-              .filter((x) => x.score > 0.2)
-              .map(async (x) => {
-                return {
-                  type: "link",
-                  url: `http://discord.com/channels/${x.guildId.toString()}/${x.channelId.toString()}/${x.messageId.toString()}`,
-                  title: x.author,
-                  description: x.text,
-                };
-              })
-          );
-
-          interaction.respond({
-            flags: MessageFlags.Ephemeral,
-            embeds,
-          });
-        }
+      if (doneBackfilling) {
+        await latestMessagesForChannel.put(
+          message.channelId.toString(),
+          message.id.toString()
+        );
       }
     },
+    // async interactionCreate(interaction) {
+    //   if (interaction.type == InteractionTypes.ApplicationCommand) {
+    //     if (interaction.data?.name == "search") {
+    //       const query = interaction.data.options?.find((x) => x.name == "text")
+    //         ?.value as string;
+    //       const results = await searchMessages(query, {
+    //         bm25: true,
+    //         dense: true,
+    //         filter: false,
+    //         offset: 0,
+    //       });
+
+    //       const embeds: DiscordEmbed[] = await Promise.all(
+    //         results
+    //           .reverse()
+    //           .filter((x) => x.score > 0.2)
+    //           .map(async (x) => {
+    //             return {
+    //               type: "link",
+    //               url: `http://discord.com/channels/${x.guildId.toString()}/${x.channelId.toString()}/${x.messageId.toString()}`,
+    //               title: x.author,
+    //               description: x.text,
+    //             };
+    //           })
+    //       );
+
+    //       interaction.respond({
+    //         flags: MessageFlags.Ephemeral,
+    //         embeds,
+    //       });
+    //     }
+    //   }
+    // },
   },
 });
 
