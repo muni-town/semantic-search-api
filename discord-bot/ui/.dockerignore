@@ -3,4 +3,3 @@ Dockerfile
 data
 node_modules
 dist
-ui

@@ -1,4 +1,4 @@
-import "./httpProxy";
+import "./httpProxy.js";
 
 import "dotenv/config";
 import {
@@ -17,12 +17,17 @@ import { ClassicLevel } from "classic-level";
 
 import { createServerAdapter } from "@whatwg-node/server";
 import { createServer } from "http";
-import { AutoRouter, json } from "itty-router";
+import { AutoRouter, cors, json } from "itty-router";
+import { embed } from "./embed.js";
+import { collectionName, denseLength, qdrant } from "./qdrant.js";
 
-const searchApi = process.env.SEARCH_API;
+import { v5 as uuidv5 } from "uuid";
+const ID_NAMESPACE = "75128e0b-d05b-4396-b065-f6544ae036b2";
 
-const db = new ClassicLevel("./data", { valueEncoding: "json" });
-const indexedIds = db.sublevel<string, string>("indexedIds", {
+const db = new ClassicLevel(process.env.DATA_DIR || "./data", {
+  valueEncoding: "json",
+});
+const indexedIds = db.sublevel<string, boolean>("indexedIds", {
   valueEncoding: "json",
 });
 const latestMessagesForChannel = db.sublevel<string, string>(
@@ -33,16 +38,6 @@ const latestMessagesForChannel = db.sublevel<string, string>(
 function messageIdToString(channelId: bigint, messageId: bigint): string {
   return `${channelId.toString()}:${messageId.toString()}`;
 }
-function messageIdFromString(id: string): {
-  channelId: bigint;
-  messageId: bigint;
-} {
-  const ids = id.split(":").map(BigInt);
-  if (ids.length !== 2) {
-    console.error("Could not parse channel and message ID from string:", id);
-  }
-  return { channelId: ids[0], messageId: ids[1] };
-}
 
 async function hasIndexed(
   channelId: bigint,
@@ -50,22 +45,8 @@ async function hasIndexed(
 ): Promise<boolean> {
   return await indexedIds.has(messageIdToString(channelId, messageId));
 }
-async function getIndexedGuild(
-  channelId: bigint,
-  messageId: bigint
-): Promise<bigint | undefined> {
-  const s = await indexedIds.get(messageIdToString(channelId, messageId));
-  return s ? BigInt(s) : undefined;
-}
-async function setIndexed(
-  guildId: bigint,
-  channelId: bigint,
-  messageId: bigint
-) {
-  await indexedIds.put(
-    messageIdToString(channelId, messageId),
-    guildId.toString()
-  );
+async function setIndexed(channelId: bigint, messageId: bigint) {
+  await indexedIds.put(messageIdToString(channelId, messageId), true);
 }
 
 async function indexMessage(
@@ -73,33 +54,61 @@ async function indexMessage(
   channelId: bigint,
   messageId: bigint,
   text: string,
-  author: string
+  authorUsername: string
 ) {
   if (await hasIndexed(channelId, messageId)) return;
   if (text.length > 0) {
-    const resp = await fetch(
-      `${searchApi}/index/${messageIdToString(channelId, messageId)}`,
-      {
-        method: "post",
-        headers: [["content-type", "application/json"]],
-        body: JSON.stringify({
-          text,
-          metadata: {
-            author,
-            text,
+    const embeddings = await embed(text);
+
+    try {
+      await qdrant.upsert(collectionName, {
+        points: [
+          {
+            id: uuidv5(messageIdToString(channelId, messageId), ID_NAMESPACE),
+            vector: {
+              dense: embeddings.dense,
+              bm25: embeddings.bm25
+                ? {
+                    indices: embeddings.bm25.indices,
+                    values: embeddings.bm25.values,
+                  }
+                : undefined,
+            },
+            payload: {
+              message: {
+                id: messageId,
+                text,
+              },
+              channel: {
+                id: channelId,
+              },
+              guild: {
+                id: guildId,
+              },
+              author: {
+                username: authorUsername,
+              },
+            },
           },
-        }),
-      }
-    );
-    if (resp.ok) {
-      await setIndexed(guildId, channelId, messageId);
-    } else {
-      console.error("Error indexing message.", resp.status, await resp.text());
+        ],
+      });
+
+      await setIndexed(channelId, messageId);
+    } catch (e) {
+      console.error("Error indexing message:", e);
     }
   }
 }
 
-async function searchMessages(text: string): Promise<
+async function searchMessages(
+  text: string,
+  {
+    dense,
+    bm25,
+    filter,
+    offset,
+  }: { dense: boolean; bm25: boolean; filter: boolean; offset: number }
+): Promise<
   {
     guildId: bigint;
     channelId: bigint;
@@ -109,32 +118,90 @@ async function searchMessages(text: string): Promise<
     text: string;
   }[]
 > {
-  const resp = await fetch("http://localhost:3000/search?limit=10", {
-    method: "post",
-    body: text,
-  });
+  const embeddings = await embed(text, { dense, bm25 });
 
-  const results: {
-    id: string;
-    score: number;
-    metadata: { author: string; text: string };
-  }[] = await resp.json();
+  const query = {
+    prefetch: [
+      embeddings.bm25
+        ? {
+            query: embeddings.bm25,
+            using: "bm25",
+            limit: 20,
+          }
+        : undefined,
+      embeddings.dense
+        ? {
+            query: embeddings.dense,
+            using: "dense",
+            limit: 20,
+          }
+        : undefined,
+    ].filter((x) => !!x),
+    query: { fusion: "rrf" },
+    with_payload: true,
+    filter: filter
+      ? {
+          must: [
+            {
+              key: "message.text",
+              match: {
+                text,
+              },
+            },
+          ],
+        }
+      : undefined,
+    offset,
+  } satisfies Parameters<(typeof qdrant)["query"]>[1];
+  const results = await qdrant.query(collectionName, query);
 
   return await Promise.all(
-    results.map(async (x) => {
-      const { channelId, messageId } = messageIdFromString(x.id);
-      const guildId = await getIndexedGuild(channelId, messageId);
+    results.points.map(async (x) => {
       return {
         score: x.score,
-        channelId,
-        messageId,
-        guildId: guildId!,
-        author: x.metadata.author,
-        text: x.metadata.text,
+        channelId: (x.payload as any).channel.id,
+        messageId: (x.payload as any).message.id,
+        guildId: (x.payload as any).guild.id,
+        author: (x.payload as any).author.username,
+        text: (x.payload as any).message.text,
       };
     })
   );
 }
+
+const { preflight, corsify } = cors();
+
+const router = AutoRouter({
+  before: [preflight],
+  finally: [corsify],
+});
+router.post("/search", async ({ text, query }) => {
+  const search = await searchMessages(await text(), {
+    bm25: query.bm25 == "true" || !query.bm25,
+    dense: query.dense == "true" || !query.dense,
+    filter: query.filter == "true",
+    offset:
+      query.offset && typeof query.offset == "string"
+        ? parseInt(query.offset)
+        : 0,
+  });
+  const results = search.map((x) => {
+    return {
+      score: x.score,
+      channelId: x.channelId.toString(),
+      messageId: x.messageId.toString(),
+      guildId: x.guildId.toString(),
+      content: x.text,
+      author: x.author,
+      link: `https://discord.com/channels/${x.guildId.toString()}/${x.channelId.toString()}/${x.messageId.toString()}`,
+    };
+  });
+  return json(results);
+});
+const ittyServer = createServerAdapter(router.fetch);
+// then pass that to Node
+const httpServer = createServer(ittyServer);
+httpServer.listen(process.env.PORT ? parseInt(process.env.PORT) : 3001);
 
 const bot = createBot({
   token: process.env.TOKEN!,
@@ -170,6 +237,35 @@ const bot = createBot({
     ready: async (ready) => {
       console.log(`Ready`, ready);
 
+      // Create qdrant collection if it doesn't exist.
+      const collection = await qdrant.collectionExists(collectionName);
+      if (!collection.exists) {
+        await qdrant.createCollection(collectionName, {
+          vectors: {
+            dense: {
+              size: denseLength,
+              distance: "Cosine",
+              on_disk: true,
+            },
+          },
+          sparse_vectors: {
+            bm25: {},
+          },
+          hnsw_config: {
+            on_disk: true,
+            m: 24,
+          },
+        });
+        await qdrant.createPayloadIndex(collectionName, {
+          field_name: "message.text",
+          field_schema: {
+            type: "text",
+            lowercase: true,
+            tokenizer: "prefix",
+          },
+        });
+      }
+
       await bot.helpers.upsertGlobalApplicationCommands([
         {
           type: ApplicationCommandTypes.ChatInput,
@@ -190,34 +286,6 @@ const bot = createBot({
           ],
         },
       ]);
-
-      const router = AutoRouter();
-      router.post("/search", async ({ text }) => {
-        const search = await searchMessages(await text());
-        console.log("got search results, loading discord messages");
-        const results = await Promise.all(
-          search.map(async (x) => {
-            const message = await bot.helpers.getMessage(
-              x.channelId,
-              x.messageId
-            );
-            return {
-              score: x.score,
-              channelId: x.channelId.toString(),
-              messageId: x.messageId.toString(),
-              guildId: x.guildId.toString(),
-              content: message.content,
-              link: `https://discord.com/channels/${x.guildId.toString()}/${x.channelId.toString()}/${x.messageId.toString()}`,
-            };
-          })
-        );
-        console.log("discord messages loaded");
-        return json(results);
-      });
-      const ittyServer = createServerAdapter(router.fetch);
-      // then pass that to Node
-      const httpServer = createServer(ittyServer);
-      httpServer.listen(3001);
 
       // For every guild the bot is in
       for (const guildId of ready.guilds) {
@@ -302,7 +370,12 @@ const bot = createBot({
         if (interaction.data?.name == "search") {
           const query = interaction.data.options?.find((x) => x.name == "text")
             ?.value as string;
-          const results = await searchMessages(query);
+          const results = await searchMessages(query, {
+            bm25: true,
+            dense: true,
+            filter: false,
+            offset: 0,
+          });
 
           const embeds: DiscordEmbed[] = await Promise.all(
             results

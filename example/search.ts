@@ -1,4 +1,3 @@
-import { messages } from "./conversations.ts";
 import { embed } from "./embed.ts";
 import { collectionName, qdrant } from "./qdrant.ts";
 

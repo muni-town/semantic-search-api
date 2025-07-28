@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "tsx watch src/main.ts",
-    "start": "tsx src/main.ts"
+    "start": "tsx src/main.ts",
+    "build": "tsc"
   },
   "type": "module",
   "keywords": [],
@@ -12,11 +13,13 @@
   "packageManager": "pnpm@10.10.0",
   "dependencies": {
     "@discordeno/bot": "^21.0.0",
+    "@qdrant/js-client-rest": "^1.15.0",
     "@whatwg-node/server": "^0.10.10",
     "classic-level": "^3.0.0",
     "dotenv": "^17.2.1",
     "itty-router": "^5.0.18",
-    "undici": "^7"
+    "undici": "^7",
+    "uuid": "^11.1.0"
   },
   "pnpm": {
     "patchedDependencies": {
@@ -25,6 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.1.0",
-    "tsx": "^4.20.3"
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
   }
 }

@@ -1,10 +1,14 @@
+import process from "node:process";
 export type Embeddings = {
   dense: number[];
   bm25: { indices: number[]; values: number[] };
 };
 
+const EMBEDDING_SERVICE =
+  process.env.EMBEDDING_SERVICE || "http://localhost:3000";
+
 export async function embed(message: string): Promise<Embeddings> {
-  const resp = await fetch(`http://localhost:3000/embed`, {
+  const resp = await fetch(`${EMBEDDING_SERVICE}/embed`, {
     method: "post",
     headers: [["content-type", "application/json"]],
     body: JSON.stringify({

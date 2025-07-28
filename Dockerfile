@@ -1,4 +1,4 @@
-FROM rust:1.87 as build
+FROM rust:1.87 AS build
 
 # Add certificate and uncomment if building behind proxy with custom cert
 # COPY ./gitignore/ca-certificates.crt /usr/local/share/ca-certificates/ca.crt

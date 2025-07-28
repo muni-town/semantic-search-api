@@ -1,4 +1,4 @@
-name: Build & Publish Docker Image
+name: Build & Publish Embedder Docker Image
 on:
   push:
     branches:
@@ -26,7 +26,7 @@ jobs:
         with:
           # list of Docker images to use as base name for tags
           images: |
-            ghcr.io/${{ github.repository_owner }}/semantic-search-api
+            ghcr.io/${{ github.repository_owner }}/discord-search-bot
 
           # generate Docker tags based on the following events/attributes
           tags: |
@@ -75,7 +75,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           push: true
-          file: Dockerfile
+          context: "{{defaultContext}}:discord-bot"
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
