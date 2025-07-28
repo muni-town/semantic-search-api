@@ -1,8 +1,8 @@
 FROM node:22-alpine AS builder
 
 # Add certificate and uncomment if building behind proxy with custom cert
-COPY ./gitignore/ca-certificates.crt /etc/ssl/cert.pem
-ENV NODE_EXTRA_CA_CERTS=/etc/ssl/cert.pem
+# COPY ./gitignore/ca-certificates.crt /etc/ssl/cert.pem
+# ENV NODE_EXTRA_CA_CERTS=/etc/ssl/cert.pem
 
 COPY . /project
 WORKDIR /project
